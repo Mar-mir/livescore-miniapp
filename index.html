@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>نتایج زنده فوتبال</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--red:#c8102e;--red2:#8b0e1a;--black:#0f0f0f;--dark:#1a1a1a;--card:#1e1e1e;--border:#2a2a2a;--text:#f0f0f0;--muted:#999;--accent:#c8102e}
+body{font-family:system-ui,-apple-system,'Segoe UI',Tahoma,Vazirmatn,sans-serif;background:var(--black);color:var(--text);min-height:100vh;direction:rtl}
+header{background:linear-gradient(135deg,var(--black) 0%,var(--red2) 50%,var(--red) 100%);padding:18px 16px 14px;text-align:center;position:sticky;top:0;z-index:10}
+header h1{font-size:18px;font-weight:900;letter-spacing:1px}
+header p{font-size:11px;opacity:.75;margin-top:4px}
+.tabs{display:flex;gap:6px;padding:10px 12px;background:var(--dark);position:sticky;top:62px;z-index:9;border-bottom:1px solid var(--border)}
+.tab{flex:1;padding:10px 6px;border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--muted);font-size:13px;font-weight:700;cursor:pointer;text-align:center;transition:.15s}
+.tab.active{background:var(--red);color:#fff;border-color:var(--red);box-shadow:0 4px 14px rgba(200,16,46,.35)}
+.tab .cnt{display:block;font-size:11px;font-weight:600;opacity:.8;margin-top:2px}
+.tab.active .cnt{opacity:1}
+.league{margin:12px 12px 0;border-radius:12px;overflow:hidden;border:1px solid var(--border);background:var(--card)}
+.league-head{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--dark);border-bottom:1px solid var(--border);font-size:12px;font-weight:800;color:var(--muted);letter-spacing:.3px}
+.league-head img{width:18px;height:18px;object-fit:contain}
+.league-head .lg-name{flex:1}
+.match{display:flex;align-items:center;gap:8px;padding:12px;border-bottom:1px solid #242424;cursor:pointer;transition:.12s}
+.match:last-child{border-bottom:none}
+.match:active{background:rgba(200,16,46,.08)}
+.team{flex:1;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;min-width:0}
+.team img{width:22px;height:22px;object-fit:contain;flex-shrink:0}
+.team span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.team.home{justify-content:flex-end;text-align:left}
+.team.away{justify-content:flex-start}
+.center{min-width:78px;text-align:center;flex-shrink:0}
+.score{font-size:18px;font-weight:900;letter-spacing:1px}
+.score.live{color:#ff2d2d}
+.badge{display:inline-block;font-size:10px;font-weight:800;padding:2px 7px;border-radius:20px;margin-top:4px}
+.badge-live{background:#ff2d2d;color:#fff;animation:pulse 1.4s infinite}
+.badge-ft{background:#2a2a2a;color:var(--muted)}
+.badge-pre{font-size:11px;color:var(--muted)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+.time{font-size:11px;color:var(--muted);margin-top:3px}
+.details{padding:8px 12px 10px;font-size:11px;color:var(--muted);border-top:1px dashed #2a2a2a;display:none}
+.details.open{display:block}
+.details .goal{padding:3px 0}
+.details .goal b{color:var(--text)}
+.empty{text-align:center;padding:40px 20px;color:var(--muted);font-size:13px}
+.empty span{font-size:32px;display:block;margin-bottom:10px}
+.footer{text-align:center;padding:16px;font-size:10px;color:#555}
+.loading{text-align:center;padding:30px;color:var(--muted);font-size:13px}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--red);margin-left:4px;vertical-align:middle;animation:pulse 1s infinite}
+</style>
+</head>
+<body>
+<header>
+<h1>⚽ نتایج زنده فوتبال</h1>
+<p id="subhead"><span class="dot"></span>بهروزرسانی خودکار هر ۶۰ ثانیه</p>
+</header>
+<div class="tabs">
+<button class="tab active" data-f="live">🔴 زنده <span class="cnt" id="c-live">—</span></button>
+<button class="tab" data-f="post">✅ پایان <span class="cnt" id="c-post">—</span></button>
+<button class="tab" data-f="pre">⏰ پیش رو <span class="cnt" id="c-pre">—</span></button>
+</div>
+<div id="list"><div class="loading">در حال دریافت نتایج...</div></div>
+<div class="footer">منبع: ESPN &nbsp;|&nbsp; <span id="updated">—</span></div>
+<script>
+const tg=window.Telegram&&window.Telegram.WebApp; if(tg){tg.ready();tg.expand();}
+const LEAGUES=[
+ {slug:'eng.1',name:'لیگ برتر انگلیس',en:'Premier League'},
+ {slug:'esp.1',name:'لالیگا اسپانیا',en:'LaLiga'},
+ {slug:'ger.1',name:'بوندسلیگا آلمان',en:'Bundesliga'},
+ {slug:'ita.1',name:'سری آ ایتالیا',en:'Serie A'},
+ {slug:'fra.1',name:'لیگ ۱ فرانسه',en:'Ligue 1'},
+ {slug:'uefa.champions',name:'لیگ قهرمانان اروپا',en:'Champions League'},
+ {slug:'uefa.europa',name:'لیگ اروپا',en:'Europa League'},
+];
+let allGames=[]; let filter='live';
+const listEl=document.getElementById('list');
+const updEl=document.getElementById('updated');
+
+function fmtTime(iso){
+ try{const d=new Date(iso);return d.toLocaleTimeString('fa-IR',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tehran'})}catch(e){return ''}
+}
+
+async function fetchAll(){
+ const promises=LEAGUES.map(l=>
+  fetch(`https://site.api.espn.com/apis/site/v2/sports/soccer/${l.slug}/scoreboard`)
+   .then(r=>r.json()).then(j=>({league:l,data:j})).catch(()=>null)
+ );
+ const results=await Promise.all(promises);
+ let games=[];
+ for(const r of results){
+  if(!r||!r.data||!r.data.events) continue;
+  for(const ev of r.data.events){
+   const comp=ev.competitions&&ev.competitions[0]; if(!comp) continue;
+   const home=comp.competitors.find(c=>c.homeAway==='home');
+   const away=comp.competitors.find(c=>c.homeAway==='away');
+   if(!home||!away) continue;
+   const st=comp.status&&comp.status.type||ev.status.type;
+   const state=st.state; // in | post | pre
+   const detail=st.shortDetail||st.detail||'';
+   const clock=comp.status&&comp.status.displayClock||'';
+   games.push({
+    league:r.league,
+    id:ev.id,
+    date:ev.date,
+    home:{name:home.team.displayName,abbr:home.team.abbreviation,logo:home.team.logo,score:home.score},
+    away:{name:away.team.displayName,abbr:away.team.abbreviation,logo:away.team.logo,score:away.score},
+    state, detail, clock,
+    details:comp.details||[],
+    venue:comp.venue&&comp.venue.fullName||'',
+   });
+  }
+ }
+ // sort: live first, then post, then pre by time
+ const order={in:0,post:1,pre:2};
+ games.sort((a,b)=>(order[a.state]??9)-(order[b.state]??9)|| new Date(a.date)-new Date(b.date));
+ allGames=games;
+ // update tab counts
+ const cIn=games.filter(g=>g.state==='in').length;
+ const cPost=games.filter(g=>g.state==='post').length;
+ const cPre=games.filter(g=>g.state==='pre').length;
+ document.getElementById('c-live').textContent=cIn?cIn+' بازی':'—';
+ document.getElementById('c-post').textContent=cPost?cPost+' بازی':'—';
+ document.getElementById('c-pre').textContent=cPre?cPre+' بازی':'—';
+ // if live is empty, switch to post
+ if(filter==='live'&&cIn===0&&cPost>0){ filter='post'; document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.f==='post')); }
+ render();
+ updEl.textContent='آخرین بروزرسانی: '+new Date().toLocaleTimeString('fa-IR',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'Asia/Tehran'});
+}
+
+function render(){
+ const filtered=allGames.filter(g=> g.state=== (filter==='live'?'in':filter));
+ if(!filtered.length){
+  const msg=filter==='live'?'در حال حاضر بازی زنده ای نیست — بازیهای تمام شده را ببینید':filter==='post'?'هنوز بازی تمام شده ای امروز نیست':'بازی پیش رویی امروز نیست';
+  listEl.innerHTML=`<div class="empty"><span>${filter==='live'?'😴':filter==='post'?'📭':'🕐'}</span>${msg}</div>`;
+  return;
+ }
+ // group by league
+ const groups={};
+ for(const g of filtered){ const k=g.league.slug; if(!groups[k]) groups[k]=[]; groups[k].push(g); }
+ let html='';
+ for(const lg of LEAGUES){
+  const gs=groups[lg.slug]; if(!gs) continue;
+  html+=`<div class="league"><div class="league-head"><span class="lg-name">${lg.name}</span><span style="opacity:.5;font-weight:600">${gs.length} بازی</span></div>`;
+  for(const g of gs){
+   const isLive=g.state==='in',isPost=g.state==='post';
+   let center='';
+   if(isLive||isPost){
+    center=`<div class="score ${isLive?'live':''}">${g.home.score} - ${g.away.score}</div>`+
+           (isLive?`<span class="badge badge-live">● زنده ${g.clock||g.detail}</span>`:`<span class="badge badge-ft">${g.detail||'پایان'}</span>`);
+   } else {
+    center=`<div class="badge-pre">${fmtTime(g.date)}</div><div class="time">${g.venue?g.venue:''}</div>`;
+   }
+   // details (goals)
+   let det='';
+   if(g.details&&g.details.length){
+    det=g.details.filter(d=>d.scoringPlay).map(d=>{
+     const pl=d.athletesInvolved&&d.athletesInvolved[0]&&d.athletesInvolved[0].displayName||'';
+     const tm=d.team&&d.team.id===g.home.logo?'':''; // not used
+     const mins=d.clock&&d.clock.displayValue||'';
+     const own=d.ownGoal?' (گلبهخودی)':'';
+     const pen=d.penaltyKick?' (پنالتی)':'';
+     return `<div class="goal">⚽ <b>${pl}</b> ${mins}${own}${pen}</div>`;
+    }).join('');
+   }
+   const did=`det-${g.id}`;
+   html+=`<div class="match" onclick="document.getElementById('${did}').classList.toggle('open')">
+    <div class="team home"><span>${g.home.name}</span><img src="${g.home.logo||''}" onerror="this.style.display='none'"></div>
+    <div class="center">${center}</div>
+    <div class="team away"><img src="${g.away.logo||''}" onerror="this.style.display='none'"><span>${g.away.name}</span></div>
+   </div>${det?`<div class="details" id="${did}">${det}</div>`:`<div class="details" id="${did}" style="display:none"></div>`}`;
+  }
+  html+=`</div>`;
+ }
+ listEl.innerHTML=html;
+}
+
+document.querySelectorAll('.tab').forEach(b=>{
+ b.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); filter=b.dataset.f; render();
+ });
+});
+
+fetchAll();
+setInterval(fetchAll,60000);
+</script>
+</body>
+</html>
